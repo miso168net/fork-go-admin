@@ -9,25 +9,33 @@
 > Sub-repo upstream remote: see `git -C fork260506-go-admin-ui remote -v`.
 > Sub-repo branch in scope: typically `main`.
 
-## Status legend
+## Patches index
 
-- 🔧 **ACTIVE** — currently needed; sub-repo on disk should have this applied
-- ⏸ **DORMANT** — was needed previously; not applied right now; kept for reference
-- ✅ **RESOLVED** — fork / upstream fixed; entry kept as historical reference
-- 📝 **PROPOSED** — identified but not yet applied
+**Single source of truth for each patch's lifecycle (Fixed upstream?) and apply-state (Applied on disk?).**
+On a fresh session — or after reverting the sub-repo — scan for any item where **both boxes are unticked**; those are the patches that need to be re-applied before bringing up the stack.
+
+- **001** — Disable `<vue-particles>` in `views/login/index.vue` (Vue 3 migration leftover)
+  - Fixed upstream? [ ]
+  - Applied on disk? [x]
+
+**How to update:**
+
+- **Fixed upstream?** Tick `[x]` when the bug is gone in the fork or upstream. Record the fix commit / date inside the entry detail. Once ticked, the entry is historical reference — keep it.
+- **Applied on disk?** Tick `[x]` when the patch is currently applied to the sub-repo working tree. Untick `[ ]` when reverted (`git -C fork260506-go-admin-ui checkout <file>`). The next time the stack starts, unticked items here are your re-apply checklist.
 
 ## Entry format
 
-Each patch gets a level-3 heading: `### NNN — short title`.
+Each patch gets a level-3 heading: `### NNN — short title`. **The entry detail does NOT carry the apply-state — that lives only in the index above.**
 
 **Required fields:**
-- **Status:** one legend value + date(s)
+- **First applied:** the date the patch was first applied (and a one-line context)
 - **Trigger:** the scenario that surfaced the issue
 - **File:** exact path relative to sub-repo root
 - **Anchor:** line numbers **and** a 1–2 line unique surrounding-context snippet (resists line drift)
 - **Change:** before / after diff (unified preferred), or full snippet for both states
 - **Reason:** root cause in one paragraph
 - **Long-term fix:** what *should* happen (PR upstream, refactor, etc.)
+- **Recovery:** the exact command(s) to revert the patch + any side-effects (e.g., needs container restart)
 - **Related docs:** spec / debug log / other workspace files
 
 ---
@@ -36,7 +44,7 @@ Each patch gets a level-3 heading: `### NNN — short title`.
 
 ### 001 — Disable `<vue-particles>` in `views/login/index.vue` (Vue 3 migration leftover)
 
-- **Status:** 🔧 ACTIVE (applied 2026-05-09 during sqlite profile UI verification; required for the login page to render at all)
+- **First applied:** 2026-05-09 (during sqlite-profile UI verification; required for the login page to render at all)
 - **Trigger:** With sqlite profile up and `http://localhost:8080/#/login` open, the page rendered nothing but a webpack-dev-server overlay reading `Uncaught runtime errors: r.component is not a function`. Root view (`#app`) had only ~20 bytes of inner HTML.
 - **File:** `src/views/login/index.vue`
 - **Anchor:** three sites in the same file

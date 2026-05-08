@@ -114,6 +114,27 @@ The umbrella docker-compose **bind-mounts whatever is on disk in each sub-repo r
 
 ## 3. Quick recipes
 
+### Pre-flight before bringing up the stack — scan patch logs
+
+Before `docker compose --profile {mysql,sqlite} up`, scan all seven `fork260506-*.md`
+files for active patches that are **not yet applied** on disk (i.e., rows in the
+"Patches index" where both **Fixed upstream?** and **Applied on disk?** are
+unticked):
+
+```bash
+# Quick visual scan (open each file's "Patches index" section)
+for f in fork260506-*.md; do
+  echo "=== $f ==="
+  awk '/^## Patches index/,/^## /' "$f" | head -40
+done
+
+# Or grep for entries needing re-apply (both checkboxes unticked):
+grep -B1 -A1 "Applied on disk\\?\\s*\\[ \\]" fork260506-*.md
+```
+
+If you find any unticked-both rows: re-apply the patch (entry detail has the
+exact code change), then tick "Applied on disk? `[x]`" in the index.
+
 ### Restore all sub-repos to clean state
 
 ```bash
@@ -121,6 +142,9 @@ for d in fork260506-*/; do
   ( cd "$d" && git checkout -- . && echo "✓ $d" )
 done
 ```
+
+> ⚠ After running this, **untick "Applied on disk?"** in any patch log entry that
+> was reverted, so the next session knows to re-apply.
 
 ### Snapshot the state of all eight repos (workspace + 7 sub-repos)
 
