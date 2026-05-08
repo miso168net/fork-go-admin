@@ -17,6 +17,12 @@ On a fresh session — or after reverting the sub-repo — scan for any item whe
 - **001** — `go.mod` may be modified by container's `go mod tidy`
   - Fixed upstream? [ ]
   - Applied on disk? *(N/A — side-effect, auto-applied by `scripts/backend-entrypoint.sh` on each fresh container)*
+- **002** — `config/db.sql`: replace external `doc-image.zhangwj.com` logo URL with empty string in `sys_app_logo` seed
+  - Fixed upstream? [ ]
+  - Applied on disk? [x]
+- **003** — `app/admin/apis/sys_user.go`: replace external `wpimg.wallstcn.com` default avatar with empty string
+  - Fixed upstream? [ ]
+  - Applied on disk? [x]
 
 **How to update:**
 
@@ -72,8 +78,98 @@ Each patch gets a level-3 heading: `### NNN — short title`. **The entry detail
 
 ---
 
+### 002 — `config/db.sql`: empty `sys_app_logo` (drop external CDN URL)
+
+- **Type:** patch
+- **First applied:** 2026-05-09 (during external-resource audit)
+- **Trigger:** CDP capture of all non-`127.0.0.1` requests during login → dashboard flow showed `https://doc-image.zhangwj.com/img/go-admin.png` failing with `ERR_CERT_DATE_INVALID` (TLS cert on the author's personal CDN expired). The URL is seeded into `sys_config.config_value` as the `sys_app_logo` and served back to the frontend via `GET /api/v1/app-config`. Findings recorded in `20260509_cdp9229_external-resources-audit.md` §1.1.
+- **File:** `config/db.sql`
+- **Anchor:** line 128 — surrounding context:
+  ```sql
+  INSERT INTO sys_config VALUES (4, '系统名称', 'sys_app_name', 'go-admin管理系统', 'Y', '1', '', 1, 0, '...', '...', NULL);
+  INSERT INTO sys_config VALUES (5, '系统logo', 'sys_app_logo', 'https://doc-image.zhangwj.com/img/go-admin.png', 'Y', '1', '', 1, 0, '...', '...', NULL);
+  ```
+- **Change:** replace the URL string with an empty string `''`. Frontend `Sidebar/Logo.vue` already has `v-if="appInfo.sys_app_logo"` so an empty value naturally falls back to text-only display; `views/login/index.vue` shows a small placeholder but fires no external request.
+  - Patched:
+    ```sql
+    INSERT INTO sys_config VALUES (5, '系统logo', 'sys_app_logo', '', 'Y', '1', '', 1, 0, '...', '...', NULL);
+    ```
+- **Detection:**
+  ```bash
+  # Returns 0 iff the external URL is gone from db.sql (empty seed).
+  ! grep -q "doc-image\\.zhangwj\\.com" fork260506-go-admin/config/db.sql
+  ```
+- **Reason:** The CDN `doc-image.zhangwj.com` is the author `lwnmengjing`'s personal asset host and the TLS certificate has expired. Even if the cert were renewed, fetching the logo from a third-party domain on every dev page load is unnecessary and a small privacy leak. db.sql is the seed file used by the **mysql** profile's `migrate` service on first boot, so this fixes future fresh starts.
+  > ⚠ db.sql change does **not** auto-propagate to the **sqlite** profile's pre-baked `<workspace>/config/go-admin-db.db` binary file. That database was updated separately at the workspace level via:
+  > ```bash
+  > docker exec go-admin-sqlite sqlite3 /go-admin-db.db \
+  >   "UPDATE sys_config SET config_value='' WHERE config_key='sys_app_logo';"
+  > ```
+  > Workspace-level data fix; no patch entry there because `go-admin-db.db` is workspace-owned (per `docker-compose.yml`'s bind mount), not a sub-repo file.
+- **Long-term fix:** PR upstream replacing this URL with a `public/`-served local asset (e.g., `/logo.png` packaged with the frontend), or empty string with cleaner frontend `v-if` guards on every consumer. Both `db.sql` and `db-sqlserver.sql` (line 132 — different URL: `gitee.com/mydearzwj/...`) hold third-party CDN URLs and should be cleaned together; this entry only addresses `db.sql` because `db-sqlserver.sql` is not used by the active workspace stack.
+- **Recovery:**
+  ```bash
+  git -C fork260506-go-admin checkout config/db.sql
+  # For the running sqlite db (workspace-owned), separately re-set if needed:
+  docker exec go-admin-sqlite sqlite3 /go-admin-db.db \
+    "UPDATE sys_config SET config_value='https://doc-image.zhangwj.com/img/go-admin.png' WHERE config_key='sys_app_logo';"
+  ```
+- **Related docs:**
+  - `20260509_cdp9229_external-resources-audit.md` §1.1 — original CDP finding
+  - Sibling `fork260506-go-admin.md` entry 003 — same audit, same theme (third-party asset removal)
+
+---
+
+### 003 — `app/admin/apis/sys_user.go`: empty default avatar (drop external CDN URL)
+
+- **Type:** patch
+- **First applied:** 2026-05-09 (during external-resource audit)
+- **Trigger:** CDP capture during login → dashboard showed `https://wpimg.wallstcn.com/f778738c-e4f8-4870-b634-56703b4acafe.gif?imageView2/...` (PanJiaChen/vue-element-admin's demo CDN) loading after `GET /api/v1/getinfo`. The image returned 200 OK so it's silent visually but every login pings a third-party image host with no functional benefit. Findings recorded in `20260509_cdp9229_external-resources-audit.md` §1.2.
+- **File:** `app/admin/apis/sys_user.go`
+- **Anchor:** line 449 (`GetInfo` handler) — surrounding context:
+  ```go
+  mp["introduction"] = " am a super administrator"
+  mp["avatar"] = "https://wpimg.wallstcn.com/f778738c-e4f8-4870-b634-56703b4acafe.gif"
+  if sysUser.Avatar != "" {
+      mp["avatar"] = sysUser.Avatar
+  }
+  ```
+- **Change:** replace the default avatar URL with empty string `""`. The conditional just below still overrides with `sysUser.Avatar` if the user has uploaded one, so this only changes the **default** behaviour for users without a custom avatar (i.e., the seeded `admin` account on first login).
+  - Patched:
+    ```go
+    // Default avatar emptied: original value pointed at a vue-element-admin
+    // demo CDN (wpimg.wallstcn.com), which leaked dev usage to a third party
+    // on every login. Frontend treats empty avatar as "no avatar". See
+    // workspace fork260506-go-admin.md entry 003.
+    mp["avatar"] = ""
+    if sysUser.Avatar != "" {
+        mp["avatar"] = sysUser.Avatar
+    }
+    ```
+- **Detection:**
+  ```bash
+  # Returns 0 iff the original avatar UUID (only present in the unpatched code,
+  # not in the patched-version comment) is gone.
+  ! grep -q "f778738c-e4f8-4870-b634-56703b4acafe" fork260506-go-admin/app/admin/apis/sys_user.go
+  ```
+- **Reason:** The URL is hardcoded fallback for `User.Avatar` when the DB record has none, copied from vue-element-admin's demo backend. It points at PanJiaChen's seven-cloud asset CDN. For an internal/dev fork there is no value sending a request there on every login — and it leaks the fact that the system was logged into. Frontend's `SET_AVATAR` mutation handles empty value (prepends `VUE_APP_BASE_API`, producing a broken-image fallback that fires no third-party request).
+- **Long-term fix:** PR upstream replacing the default with a static asset URL served from the backend itself (e.g., `/api/v1/public/default-avatar.png`) or empty string + frontend default-icon component (Element Plus `<el-avatar>` shows initials/icons fallback automatically). Either approach removes the third-party dependency.
+- **Recovery:**
+  ```bash
+  git -C fork260506-go-admin checkout app/admin/apis/sys_user.go
+  docker compose --profile sqlite restart go-admin-sqlite   # or rm + up if WSL2 mount glitch hits
+  ```
+  After recovery, the demo CDN avatar resumes loading on every login.
+- **Related docs:**
+  - `20260509_cdp9229_external-resources-audit.md` §1.2 — original CDP finding
+  - Sibling `fork260506-go-admin.md` entry 002 — same audit, same theme (third-party asset removal)
+
+---
+
 ## Revision log
 
 | Date | Change |
 |---|---|
 | 2026-05-09 | Initial scaffold; documented entry 001 (go.mod tidy side-effect) |
+| 2026-05-09 | Documented entry 002 (db.sql `sys_app_logo` external URL removed) |
+| 2026-05-09 | Documented entry 003 (sys_user.go default avatar external URL removed) |
