@@ -11,7 +11,7 @@
 # 設計提醒:`<<: *backend-base` 只 merge mapping;list (volumes/command/ports)
 #          每個 service 仍要重寫。把不變的 image/env/entrypoint/networks 抽到此處。
 x-backend-base: &backend-base
-  image: golang:1.24-alpine                      # from: Dockerfile.learning:7
+  image: golang:1.24-alpine                      # from: Dockerfile.learning:7 (core 已從 go.work 排除,1.25 不再必要)
   working_dir: /workspace/fork260506-go-admin    # entrypoint cd 到這裡
   environment:
     # ─── 中國網路 mirror (作者 lwnmengjing 來自中國;Taiwan 不需要,留作參考) ───
@@ -35,16 +35,18 @@ services:
       port: "8080"
       VUE_APP_BASE_API: http://localhost:8000
       TZ: Asia/Shanghai
+      # Override taobao registry in fork's .npmrc (cert expired ~2024).
+      # npm_config_* env vars take precedence over ALL .npmrc files.
+      npm_config_registry: https://registry.npmjs.org
     command:
       - sh
       - -c
       - |
         if [ ! -d node_modules ] || [ -z "$$(ls -A node_modules 2>/dev/null)" ]; then
           # ─── 中國網路 mirror (Taiwan 不需要,留作參考) ───
-          # npm config set registry https://registry.npmmirror.com
-          # npm install -g cnpm --registry=https://registry.npmmirror.com
-          # cnpm install
-          npm install
+          # npm_config_registry=https://registry.npmmirror.com npm install --legacy-peer-deps
+          # --legacy-peer-deps: script-ext-html-webpack-plugin@2.1.5 has webpack@4 peer conflict
+          npm install --legacy-peer-deps
         fi
         npm run dev
     networks: [workspace-net]
