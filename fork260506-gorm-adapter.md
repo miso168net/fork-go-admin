@@ -12,25 +12,32 @@
 > **Note:** Library-only sub-repo (no service). Linked into the backend via
 > `go.work` `use` directive at workspace level.
 
-## Status legend
+## Patches index
 
-- 🔧 **ACTIVE** — currently needed; sub-repo on disk should have this applied
-- ⏸ **DORMANT** — was needed previously; not applied right now; kept for reference
-- ✅ **RESOLVED** — fork / upstream fixed; entry kept as historical reference
-- 📝 **PROPOSED** — identified but not yet applied
+**Single source of truth for each patch's lifecycle (Fixed upstream?) and apply-state (Applied on disk?).**
+On a fresh session — or after reverting the sub-repo — scan for any item where **both boxes are unticked**; those are the patches that need to be re-applied before bringing up the stack.
+
+*(no patches recorded yet)*
+
+**How to update once entries exist:**
+
+- **Fixed upstream?** Tick `[x]` when the bug is gone in the fork or upstream. Record the fix commit / date inside the entry detail. Once ticked, the entry is historical reference — keep it.
+- **Applied on disk?** Tick `[x]` when the patch is currently applied to the sub-repo working tree. Untick `[ ]` when reverted (`git -C fork260506-gorm-adapter checkout <file>`).
 
 ## Entry format
 
-Each patch gets a level-3 heading: `### NNN — short title`.
+Each patch gets a level-3 heading: `### NNN — short title`. **The entry detail does NOT carry the apply-state — that lives only in the index above.**
 
 **Required fields:**
-- **Status:** one legend value + date(s)
+- **Type:** `patch` (deliberate edit) | `side-effect` (container-induced) | `proposed` (identified, not applied)
+- **First applied / observed:** date + one-line context
 - **Trigger:** the scenario that surfaced the issue
 - **File:** exact path relative to sub-repo root
 - **Anchor:** line numbers **and** a 1–2 line unique surrounding-context snippet (resists line drift)
-- **Change:** before / after diff (unified preferred), or full snippet for both states
+- **Change:** before / after diff or full snippet for both states
 - **Reason:** root cause in one paragraph
 - **Long-term fix:** what *should* happen (PR upstream, refactor, etc.)
+- **Recovery:** the exact command(s) to revert
 - **Related docs:** spec / debug log / other workspace files
 
 ---
