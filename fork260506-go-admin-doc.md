@@ -37,6 +37,7 @@ Each patch gets a level-3 heading: `### NNN — short title`. **The entry detail
 - **File:** exact path relative to sub-repo root
 - **Anchor:** line numbers **and** a 1–2 line unique surrounding-context snippet (resists line drift)
 - **Change:** before / after diff or full snippet for both states
+- **Detection:** a shell command that **exits 0 iff the patch is currently applied** to the sub-repo on disk. Drives the reconciliation workflow that auto-syncs `Applied on disk?` in the index (see [SUBREPOS.md §3](SUBREPOS.md#3-the-rules)).
 - **Reason:** root cause in one paragraph
 - **Long-term fix:** what *should* happen (PR upstream, refactor, etc.)
 - **Recovery:** the exact command(s) to revert

@@ -15,3 +15,5 @@ project's graph report first:**
 For cross-project questions, load all seven reports.
 
 **Before modifying or committing anything inside any `fork260506-*/` sub-repo, read [SUBREPOS.md](SUBREPOS.md) first — sub-repo changes must never enter this workspace's git history.**
+
+**Before `docker compose ... up` — and after any sub-repo `git checkout` or new sub-repo patch — run the patch-log reconciliation workflow in [SUBREPOS.md](SUBREPOS.md#reconcile-patch-log-apply-state-run-before-stack-up-or-whenever-asked). It walks each `fork260506-<name>.md` entry's Detection command and syncs the `Applied on disk?` checkbox to filesystem reality. The user should never need to manually edit those checkboxes — that's the agent's job.**

@@ -34,6 +34,7 @@ Each patch gets a level-3 heading: `### NNN — short title`. **The entry detail
 - **File:** exact path relative to sub-repo root
 - **Anchor:** line numbers **and** a 1–2 line unique surrounding-context snippet (resists line drift)
 - **Change:** before / after diff (unified preferred), or full snippet for both states; for side-effects, describe what the container does
+- **Detection:** a shell command that **exits 0 iff the patch / side-effect signature is currently present** in the sub-repo on disk. For `Type: patch`, this drives the reconciliation workflow that auto-syncs `Applied on disk?` (see [SUBREPOS.md §3](SUBREPOS.md#3-the-rules)). For `Type: side-effect`, it is informational (lets you confirm the side-effect has fired on a fresh container).
 - **Reason:** root cause in one paragraph
 - **Long-term fix:** what *should* happen (PR upstream, refactor, etc.)
 - **Recovery:** the exact command(s) to revert (or "auto-recovers next clean start" for side-effects)
@@ -51,6 +52,13 @@ Each patch gets a level-3 heading: `### NNN — short title`. **The entry detail
 - **File:** `go.mod`
 - **Anchor:** the `require ( ... // indirect )` block; specifically the `imdario/mergo` line which gets replaced by `dario.cat/mergo`
 - **Change:** automatic; produced by `go mod tidy` not by us
+- **Detection:**
+  ```bash
+  # Returns 0 iff `go mod tidy` has run on the bind-mounted source, leaving its
+  # signature in go.mod (the `dario.cat/mergo` indirect entry). Informational
+  # only — this is a side-effect, so Applied on disk? in the index stays N/A.
+  grep -q "dario.cat/mergo" fork260506-go-admin/go.mod
+  ```
 - **Reason:** `go.sum` is `.gitignore`d in this fork. First-run bind-mount has no `go.sum`. `go mod download` alone does not populate transitive `go.sum`; only `go mod tidy` does, and tidy normalizes module paths along the way.
 - **Long-term fix:** Workspace-level pre-baked `go.mod` / `go.sum` overlay bind-mount (option already noted in `docs/superpowers/specs/20260508a_workspace-docker-compose-design.md` §5). Implementing that is a separate workspace task.
 - **Recovery (after smoke test):**

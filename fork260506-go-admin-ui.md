@@ -28,11 +28,13 @@ On a fresh session — or after reverting the sub-repo — scan for any item whe
 Each patch gets a level-3 heading: `### NNN — short title`. **The entry detail does NOT carry the apply-state — that lives only in the index above.**
 
 **Required fields:**
+- **Type:** `patch` (deliberate edit) | `side-effect` (container-induced) | `proposed` (identified, not applied)
 - **First applied:** the date the patch was first applied (and a one-line context)
 - **Trigger:** the scenario that surfaced the issue
 - **File:** exact path relative to sub-repo root
 - **Anchor:** line numbers **and** a 1–2 line unique surrounding-context snippet (resists line drift)
 - **Change:** before / after diff (unified preferred), or full snippet for both states
+- **Detection:** a shell command(s) that **exits 0 iff the patch is currently applied** to the sub-repo on disk. Used by the reconciliation workflow (see [SUBREPOS.md §3](SUBREPOS.md#3-the-rules)) to derive `Applied on disk?` automatically — no manual ticking required.
 - **Reason:** root cause in one paragraph
 - **Long-term fix:** what *should* happen (PR upstream, refactor, etc.)
 - **Recovery:** the exact command(s) to revert the patch + any side-effects (e.g., needs container restart)
@@ -96,6 +98,13 @@ Each patch gets a level-3 heading: `### NNN — short title`. **The entry detail
         // VueParticles: Particles  // disabled — see template comment
       },
     ```
+- **Detection:**
+  ```bash
+  # Returns 0 iff the import line is commented out (i.e., the patch is applied).
+  grep -qE "^[[:space:]]*//[[:space:]]*import Particles from '@tsparticles/vue3'" \
+    fork260506-go-admin-ui/src/views/login/index.vue
+  ```
+  Run from workspace root. Exit `0` → tick `Applied on disk? [x]` in the index. Non-zero → set to `[ ]` and re-apply per **Change** above before the stack will work again.
 - **Reason:** `@tsparticles/vue3`'s default export is a Vue 3 **plugin** object `{ install(app, options) { app.component('vue-particles', VueParticlesComp); ... } }`. The fork's `views/login/index.vue` imports it and then registers it as a **local component** via `components: { VueParticles: Particles }`. Vue 3 sees the plugin object, finds no `render`/`setup`/`template`, and ends up calling `install` itself as the render function. The first line of `install` is `app.component(...)`; the argument Vue passes during render is not the app instance, so `.component` is undefined → TypeError. Meanwhile, `src/main.js:40` has the *correct* registration (`app.use(VueParticles, ...)`) commented out with the note `vue-particles 不支持 Vue 3，需要后续处理`, confirming this is an incomplete Vue 3 migration.
 - **Long-term fix:** Restore the global registration in `main.js`:
   ```js

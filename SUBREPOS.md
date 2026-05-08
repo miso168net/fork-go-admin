@@ -114,26 +114,57 @@ The umbrella docker-compose **bind-mounts whatever is on disk in each sub-repo r
 
 ## 3. Quick recipes
 
-### Pre-flight before bringing up the stack — scan patch logs
+### Reconcile patch-log apply-state (run before stack-up, or whenever asked)
 
-Before `docker compose --profile {mysql,sqlite} up`, scan all seven `fork260506-*.md`
-files for active patches that are **not yet applied** on disk (i.e., rows in the
-"Patches index" where both **Fixed upstream?** and **Applied on disk?** are
-unticked):
+The **Patches index** in each `fork260506-<name>.md` has an `Applied on disk?`
+checkbox per entry. The truth lives on the sub-repo's **filesystem**, not in
+the markdown — the checkbox is just a cached view. Reconciliation = run each
+entry's **Detection** command, then sync the markdown checkbox to match
+filesystem reality. **The agent (you, future Claude) is responsible for
+running this; the user should never have to manually edit `[x]`/`[ ]`.**
 
-```bash
-# Quick visual scan (open each file's "Patches index" section)
-for f in fork260506-*.md; do
-  echo "=== $f ==="
-  awk '/^## Patches index/,/^## /' "$f" | head -40
-done
+**When to run:**
 
-# Or grep for entries needing re-apply (both checkboxes unticked):
-grep -B1 -A1 "Applied on disk\\?\\s*\\[ \\]" fork260506-*.md
+- Before `docker compose ... up` (so any reverted patch gets re-applied first).
+- After running any of these recipes that modify sub-repos:
+  - `git -C fork260506-... checkout` (revert)
+  - applying a new patch (Edit / Write inside a sub-repo)
+- When the user asks "are the patch logs in sync" / "what's pending" / similar.
+
+**Procedure:**
+
+```text
+for each fork260506-<name>.md:
+    for each entry under "## Entries" with Type == patch:
+        run the entry's Detection command
+        decide:
+            exit 0     → patch IS applied;     index should say [x]
+            exit != 0  → patch is NOT applied; index should say [ ]
+        if the index disagrees:
+            update the markdown (Edit tool) to match filesystem
+            if "Applied on disk?" was [x] and is now [ ]:
+                this means the user reverted the file — re-apply the patch
+                (use the entry's Change field), then update index back to [x]
+            if "Applied on disk?" was [ ] and is now [x]:
+                someone re-applied without ticking — just update the box
+
+    side-effect entries: run their Detection too, but informational only —
+        no checkbox to sync (Applied on disk? is N/A for side-effects).
 ```
 
-If you find any unticked-both rows: re-apply the patch (entry detail has the
-exact code change), then tick "Applied on disk? `[x]`" in the index.
+**Quick scans (helpers, not authoritative):**
+
+```bash
+# List entries whose markdown index says NOT applied — re-apply candidates
+grep -nE "Applied on disk\\?\\s*\\[ \\]" fork260506-*.md
+
+# List entries whose markdown index says applied — verify each Detection
+grep -nE "Applied on disk\\?\\s*\\[x\\]" fork260506-*.md
+```
+
+These greps tell you what the *markdown* claims; the Detection command tells
+you what's *true*. When they disagree, the filesystem wins — update the
+markdown, not the file.
 
 ### Restore all sub-repos to clean state
 
@@ -143,8 +174,9 @@ for d in fork260506-*/; do
 done
 ```
 
-> ⚠ After running this, **untick "Applied on disk?"** in any patch log entry that
-> was reverted, so the next session knows to re-apply.
+> ⚠ After running this, the agent must run the reconciliation workflow above —
+> any active patch will now show `Applied on disk? [ ]` and need re-apply
+> before the stack comes up cleanly.
 
 ### Snapshot the state of all eight repos (workspace + 7 sub-repos)
 
