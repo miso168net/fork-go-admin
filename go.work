@@ -1,0 +1,13 @@
+go 1.24
+
+// fork260506-go-admin-core 從 use 清單排除:
+//   (1) fork 跟 upstream API 不相容(smoke test 編譯失敗才發現)
+//   (2) fork 的 sdk/ 子目錄沒有獨立 go.mod,go.work 無法只 override 一部份
+// backend 改走上游 published 版的 go-admin-core(透過 module cache),
+// 不從 workspace 本機解析。
+use (
+    ./fork260506-go-admin
+    ./fork260506-gorm-adapter
+    ./fork260506-redis-watcher
+    ./fork260506-redisqueue
+)
