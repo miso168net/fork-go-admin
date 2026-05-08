@@ -38,6 +38,12 @@ services:
       # Override taobao registry in fork's .npmrc (cert expired ~2024).
       # npm_config_* env vars take precedence over ALL .npmrc files.
       npm_config_registry: https://registry.npmjs.org
+      # WSL2 + Docker Desktop + NTFS bind-mount has no inotify; force polling
+      # so chokidar / webpack watchpack pick up host edits to .vue/.js files.
+      # See spec §5 row "改檔後 docker logs 沒出現新的 Build finished".
+      # Cost: ~100ms-interval poll, negligible CPU on dev box.
+      CHOKIDAR_USEPOLLING: "1"
+      WATCHPACK_POLLING: "true"
     command:
       - sh
       - -c

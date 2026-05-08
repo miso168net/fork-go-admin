@@ -634,6 +634,7 @@ docker compose --profile mysql down -v
 | sqlite backend `Binary was compiled with 'CGO_ENABLED=0'` | apk add 失敗 / entrypoint 跳過了 install | 進容器跑 `which gcc`;若無則手動 `apk add gcc g++ libc6-compat sqlite` |
 | frontend `npm install` 卡死 | npm 對 alpine glibc 套件編譯失敗 | 改用 `node:18-bullseye-slim`(debian-based)替代 alpine |
 | frontend dev server 起在 9527 不是 8080 | env `port=8080` 沒注入 | docker-compose.yml 的 `go-admin-ui.environment.port` 必為字串 `"8080"` |
+| 改 `.vue` / `.js` 檔後 `docker logs go-admin-ui` 沒出現新的 `Build finished`,瀏覽器永遠是舊版 | WSL2 + Docker Desktop + NTFS bind-mount 不送 inotify event 給容器,chokidar / webpack watchpack 看不到 file change(symptom 跟 HMR 卡關不同 — 那個是 server side rebuild 完了 push 不到瀏覽器;這個是 server side 根本沒 rebuild) | docker-compose.yml `go-admin-ui.environment` 加 `CHOKIDAR_USEPOLLING: "1"` 與 `WATCHPACK_POLLING: "true"` 強制 polling(已經是 default 設定)。要驗證:`docker exec go-admin-ui env \| grep -iE "polling\|chokidar"` 應該兩個都看得到。Linux 主機原生跑時不會撞到此問題,所以非 WSL 環境可移除省 CPU |
 | 瀏覽器登入看到 CORS 錯誤 | 後端沒設 CORS,前端與後端走不同 origin | 短期解:browser 安裝 CORS 擴充;長期解:在 `vue.config.js` 加 `devServer.proxy` |
 | WSL2 主機 Windows 瀏覽器開不到 | WSL2 自動 forward 失效 | WSL 內 `curl localhost:8080` 確認;不行則 `wsl --shutdown` 重啟 |
 | First run 後 `git -C fork260506-go-admin status` 顯示 `M go.mod` | entrypoint script 的 `go mod tidy` 為了補 transitive go.sum 而連帶更新 go.mod(例如 `imdario/mergo` → `dario.cat/mergo` 重命名) | smoke test 後 `git -C fork260506-go-admin checkout go.mod` 還原。長期解:在 workspace 預先 bake 一份 go.mod + go.sum,bind-mount overlay 蓋過 sub-repo 的(留作後續迭代)。 |
