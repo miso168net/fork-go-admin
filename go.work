@@ -1,0 +1,9 @@
+go 1.24
+
+use (
+    ./fork260506-go-admin
+    ./fork260506-go-admin-core
+    ./fork260506-gorm-adapter
+    ./fork260506-redis-watcher
+    ./fork260506-redisqueue
+)
