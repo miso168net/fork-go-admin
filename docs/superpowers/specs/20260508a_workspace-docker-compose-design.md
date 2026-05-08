@@ -191,7 +191,7 @@ fork260506-*
 ### 2.4 `go.work`
 
 ```
-go 1.24
+go 1.25
 
 use (
     ./fork260506-go-admin
@@ -226,8 +226,11 @@ settings:
     host: 0.0.0.0                 # from: settings.yml:6  (本來就 0.0.0.0,容器化也適用)
     name: testApp                 # from: settings.yml:8
     port: 8000                    # from: settings.yml:10
-    readtimeout: 3000             # from: settings.sqlite.yml:11 (settings.yml 是 1,太短)
-    writertimeout: 2000           # from: settings.sqlite.yml:12 (settings.yml 是 2,太短)
+    # 單位:秒 (server.go:92-93 用 time.Duration(...) * time.Second)
+    # 上游 settings.yml 是 1 秒(太短),settings.sqlite.yml 是 3000 秒(50 分鐘,過長 mask 住 hang);
+    # workspace 取折衷的 30 秒。
+    readtimeout: 30
+    writertimeout: 30
     enabledp: false               # from: settings.yml:14
   logger:
     path: temp/logs               # from: settings.yml:17
@@ -274,8 +277,11 @@ settings:
     host: 0.0.0.0                 # from: settings.sqlite.yml:6
     name: testApp                 # from: settings.sqlite.yml:8
     port: 8000                    # from: settings.sqlite.yml:10
-    readtimeout: 3000             # from: settings.sqlite.yml:11
-    writertimeout: 2000           # from: settings.sqlite.yml:12
+    # 單位:秒 (server.go:92-93 用 time.Duration(...) * time.Second)
+    # 上游 settings.yml 是 1 秒(太短),settings.sqlite.yml 是 3000 秒(50 分鐘,過長 mask 住 hang);
+    # workspace 取折衷的 30 秒。
+    readtimeout: 30
+    writertimeout: 30
     enabledp: false               # from: settings.sqlite.yml:14
   logger:
     path: temp/logs               # from: settings.sqlite.yml:17
