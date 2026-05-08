@@ -191,11 +191,15 @@ fork260506-*
 ### 2.4 `go.work`
 
 ```
-go 1.25
+go 1.24
 
+// fork260506-go-admin-core 從 use 清單排除:
+//   (1) fork 跟 upstream API 不相容(smoke test 編譯失敗才發現)
+//   (2) fork 的 sdk/ 子目錄沒有獨立 go.mod,go.work 無法只 override 一部份
+// backend 改走上游 published 版的 go-admin-core(透過 module cache),
+// 不從 workspace 本機解析。
 use (
     ./fork260506-go-admin
-    ./fork260506-go-admin-core
     ./fork260506-gorm-adapter
     ./fork260506-redis-watcher
     ./fork260506-redisqueue
@@ -205,9 +209,14 @@ use (
 `fork260506-go-admin-ui`(Vue)與 `fork260506-go-admin-doc`(dumi)非 Go module,不進 `go.work`。
 
 backend 容器 `working_dir: /workspace/fork260506-go-admin`;從那裡 Go 自動往上找到
-`/workspace/go.work`,進入 workspace mode,把 `import "github.com/go-admin-team/go-admin-core/..."`
-等 import 路徑解析到本機 `/workspace/fork260506-go-admin-core/`(而不是 module cache 裡
-從 GitHub 抓的版本)。
+`/workspace/go.work`,進入 workspace mode,把 `import "github.com/go-admin-team/gorm-adapter/v3"`、
+`redis-watcher`、`redisqueue` 等 import 路徑解析到本機(而不是 module cache 裡從 GitHub 抓的版本)。
+
+> **歷史紀錄(2026-05-08 smoke test 發現):** 初版 go.work 把 `go-admin-core` 也列為 use,
+> 並把 go directive 設為 1.25(因 go-admin-core 主 module go.mod 寫 go 1.25)。Smoke test 編譯
+> 失敗:`go-admin-core` fork 與上游 API 不相容(import path / 函式簽章對不上),且其 `sdk/`
+> 子目錄不是獨立 module,go.work 無法只 override 部分。把 `go-admin-core` 從 use 清單移除後
+> 編譯通過,go directive 也回到 1.24(剩下 4 個 use 的 module 都只需要 1.24)。
 
 ### 2.5 `config/settings.workspace-mysql.yml`(完整內容)
 
@@ -372,16 +381,19 @@ services:
       port: "8080"                               # vue.config.js:17 讀 process.env.port (預設 9527 → 8080)
       VUE_APP_BASE_API: http://localhost:8000    # vue.config.js 無 devServer.proxy,瀏覽器直打 backend
       TZ: Asia/Shanghai
+      # smoke test 發現:fork 的 .npmrc 指向 taobao mirror,憑證 ~2024 過期。
+      # npm_config_* env vars 蓋過所有 .npmrc 檔,確保走 npmjs.org 公網 registry。
+      npm_config_registry: https://registry.npmjs.org
     command:
       - sh
       - -c
       - |
         if [ ! -d node_modules ] || [ -z "$$(ls -A node_modules 2>/dev/null)" ]; then
           # ─── 中國網路 mirror (Taiwan 不需要,留作參考) ───
-          # npm config set registry https://registry.npmmirror.com   # from: fork260506-go-admin-ui/Dockerfile:4
-          # npm install -g cnpm --registry=https://registry.npmmirror.com
-          # cnpm install
-          npm install
+          # npm_config_registry=https://registry.npmmirror.com npm install --legacy-peer-deps
+          # --legacy-peer-deps:smoke test 發現 script-ext-html-webpack-plugin@2.1.5 跟
+          #                    webpack@4 有 peer 衝突;npm 7+ 預設嚴格,需要這個 flag。
+          npm install --legacy-peer-deps
         fi
         npm run dev
     networks: [workspace-net]
@@ -624,6 +636,10 @@ docker compose --profile mysql down -v
 | frontend dev server 起在 9527 不是 8080 | env `port=8080` 沒注入 | docker-compose.yml 的 `go-admin-ui.environment.port` 必為字串 `"8080"` |
 | 瀏覽器登入看到 CORS 錯誤 | 後端沒設 CORS,前端與後端走不同 origin | 短期解:browser 安裝 CORS 擴充;長期解:在 `vue.config.js` 加 `devServer.proxy` |
 | WSL2 主機 Windows 瀏覽器開不到 | WSL2 自動 forward 失效 | WSL 內 `curl localhost:8080` 確認;不行則 `wsl --shutdown` 重啟 |
+| First run 後 `git -C fork260506-go-admin status` 顯示 `M go.mod` | entrypoint script 的 `go mod tidy` 為了補 transitive go.sum 而連帶更新 go.mod(例如 `imdario/mergo` → `dario.cat/mergo` 重命名) | smoke test 後 `git -C fork260506-go-admin checkout go.mod` 還原。長期解:在 workspace 預先 bake 一份 go.mod + go.sum,bind-mount overlay 蓋過 sub-repo 的(留作後續迭代)。 |
+| frontend `npm install` 卡在 `EAUTH` / `CERT_HAS_EXPIRED` | fork 自帶的 `.npmrc` 指向 taobao mirror,憑證過期 | docker-compose.yml 已設 `npm_config_registry: https://registry.npmjs.org` 蓋過。若仍卡住,進容器看 `npm config get registry` 是否被其他 .npmrc 覆寫 |
+| frontend `npm install` 報 `ERESOLVE could not resolve` peer 衝突 | `script-ext-html-webpack-plugin@2.1.5` 跟 `webpack@4` 有 peer dep 衝突;npm 7+ 預設嚴格 | docker-compose.yml 已加 `--legacy-peer-deps`;若手動執行 `npm install` 也要帶這個 flag |
+| backend 編譯報 `package go-admin-team/go-admin-core/sdk: missing go.sum entry` 或 import 路徑找不到 | go-admin-core fork 跟 upstream API 不相容,且 sdk/ 子目錄不是獨立 module | 確認 go.work **沒有**列入 `./fork260506-go-admin-core`(讓 backend 走 module cache 從 GitHub 抓) |
 
 ---
 
@@ -638,7 +654,7 @@ docker compose --profile mysql down -v
 | `config/go-admin-db.db` 寫入 | sqlite mode 登入 → host 端 `stat config/go-admin-db.db` mtime 更新 |
 | `backend-entrypoint.sh` `go mod tidy` 路徑 | 移除 fork260506-go-admin/go.sum 後重啟,容器仍能起來 |
 | Profile 互斥 | mysql profile up 時 sqlite container 不存在(`docker ps` 不見) |
-| Sub-repo 不被污染 | 跑完整流程後 `git -C fork260506-go-admin status` 仍乾淨 |
+| Sub-repo 不被污染 | first-run 後 `git -C fork260506-go-admin status` 會看到 ` M go.mod`(entrypoint tidy 副作用,見 §5)。`git checkout go.mod` 還原即可;其他 6 個 sub-repo 任何時候都應乾淨。長期解見 §5 同列「workspace 預先 bake go.mod/go.sum」 |
 | Workspace repo 追蹤新檔 | `git -C <workspace> status` 顯示 5 個新檔 untracked / staged |
 
 ---
@@ -648,3 +664,5 @@ docker compose --profile mysql down -v
 | 日期 | 修改 | 作者 |
 |---|---|---|
 | 2026-05-08 | 初版(brainstorming 產出) | Claude Code |
+| 2026-05-08 | code review 修訂:go.work 1.24→1.25、readtimeout/writertimeout 改 30s + 加單位註解、entrypoint.sh git mode 100755 | Claude Code |
+| 2026-05-08 | mysql smoke test 發現性修訂:go-admin-core 從 go.work 排除(API 不相容)、go directive 回 1.24、frontend 加 `npm_config_registry` + `--legacy-peer-deps` 處理 fork 的 .npmrc 與 peer dep 衝突;§5 故障排除增 4 條 | Claude Code |
