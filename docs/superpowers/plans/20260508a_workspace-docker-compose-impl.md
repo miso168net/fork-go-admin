@@ -17,7 +17,7 @@
 | Path | Owner | Purpose |
 |---|---|---|
 | `<workspace>/docker-compose.yml` | Created in T7 | Hybrid-profile compose (mysql / sqlite) — single source of truth for service topology |
-| `<workspace>/go.work` | Created in T3 | Go workspace listing 5 Go module repos as `use` directives |
+| `<workspace>/go.work` | Created in T3 (initially 5 use directives), trimmed to 4 in T8 (go-admin-core excluded — see spec §2.4) | Go workspace `use` block for backend's local module resolution |
 | `<workspace>/config/settings.workspace-mysql.yml` | Created in T4 | mysql DSN + workspace overrides;bind-mounted to backend `/config/settings.yml` |
 | `<workspace>/config/settings.workspace-sqlite.yml` | Created in T5 | sqlite DSN + workspace overrides;same mount target,sqlite profile only |
 | `<workspace>/config/go-admin-db.db` | Copied in T2 | sqlite seed (348 KB);bind-mounted rw to backend `/go-admin-db.db` |
@@ -160,7 +160,7 @@ git add go.work
 git commit -m "$(cat <<'EOF'
 chore(workspace): add go.work for cross-module local resolution
 
-Lists the 5 Go module sub-repos as use directives so backend
+Lists the 5 Go module sub-repos (go-admin-core later excluded in T8 — see spec §2.4) as use directives so backend
 imports of go-admin-core / gorm-adapter / redis-watcher / redisqueue
 resolve to the bind-mounted local copies (no go.mod replace needed).
 

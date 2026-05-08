@@ -48,7 +48,7 @@
 
 **範圍:**
 - 單一 `docker-compose.yml`
-- `go.work`(workspace 級 Go workspace,列 5 個 Go module repo)
+- `go.work`(workspace 級 Go workspace,列 4 個 Go module repo(go-admin-core 因 fork API 不相容已排除,見 §2.4))
 - `config/settings.workspace-mysql.yml` + `config/settings.workspace-sqlite.yml`
 - `config/go-admin-db.db`(從 sub-repo 拷貝的 sqlite seed)
 - `scripts/backend-entrypoint.sh`(go.sum tidy fallback + apk add CGO toolchain)
@@ -142,7 +142,7 @@ fork-go-admin/                                        ← workspace 根
 ├── .git/  .gitignore  CLAUDE.md  fork260506*.md       ← 既有
 │
 ├── docker-compose.yml                                ← 🆕 hybrid profiles 主檔(§3)
-├── go.work                                           ← 🆕 Go workspace,列 5 個 Go module repo(§2.4)
+├── go.work                                           ← 🆕 Go workspace,列 4 個 Go module repo(go-admin-core 因 fork API 不相容已排除,見 §2.4)(§2.4)
 │
 ├── config/                                           ← 🆕 workspace 自持 backend 設定 + sqlite 種子
 │   ├── settings.workspace-mysql.yml                  ← 🆕(§2.5)
